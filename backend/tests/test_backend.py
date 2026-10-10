@@ -8,11 +8,11 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from backend.agents import Agents
+from backend.agent import Agents
 from backend.config import Settings
 from backend.main import create_app
 from backend.models import Bid
-from backend.simulation import HOURS, dispatch, initial
+from backend.coordinator import HOURS, dispatch, initial
 from backend.store import Conflict, FirestoreStore, MemoryStore
 
 
@@ -319,6 +319,10 @@ def test_firestore_atomic_cas_uses_shared_document(monkeypatch):
         class Ref:
             async def get(self, transaction=None):
                 return SimpleNamespace(exists=bool(shared), to_dict=lambda: deepcopy(shared))
+            async def create(self, value):
+                if shared:
+                    raise Conflict()
+                shared.update(deepcopy(value))
         class Transaction:
             def set(self, ref, value):
                 shared.clear()
@@ -332,6 +336,7 @@ def test_firestore_atomic_cas_uses_shared_document(monkeypatch):
         stores = []
         for _ in range(2):
             store = FirestoreStore.__new__(FirestoreStore)
+            store.initial_snapshot = initial()
             store.ref = Ref()
             store.client = SimpleNamespace(transaction=Transaction)
             stores.append(store)
@@ -343,3 +348,13 @@ def test_firestore_atomic_cas_uses_shared_document(monkeypatch):
         assert set(shared) == {"state", "logs"}
         assert (await stores[1].read()).state.revision == 1
     run(scenario())
+
+
+def test_generation_survives_round_and_reset():
+    with TestClient(create_app(Settings())) as client:
+        original = client.get("/api/state").json()
+        after = client.post("/api/disruptions", json={"event": "storm"}).json()
+        reset = client.post("/api/reset").json()
+        assert original["generation_id"] == after["generation_id"] == reset["generation_id"]
+        assert reset["revision"] > after["revision"]
+    assert initial().state.generation_id != initial().state.generation_id

@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from typing import Any, Literal
+from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -71,6 +72,7 @@ class Totals(StrictModel):
 
 
 class State(StrictModel):
+    generation_id: str = Field(default_factory=lambda: str(uuid4()))
     revision: int = Field(ge=0)
     event: Event
     grid_connected: bool

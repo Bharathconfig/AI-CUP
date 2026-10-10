@@ -2,7 +2,7 @@ import asyncio
 
 from .config import Settings
 from .models import Snapshot
-from .simulation import initial
+from .coordinator import initial
 
 
 class Conflict(Exception):
@@ -35,10 +35,22 @@ class FirestoreStore:
         from google.cloud.firestore_v1 import AsyncClient
         self.client = AsyncClient(project=settings.project)
         self.ref = self.client.collection(settings.collection).document(settings.document)
+        self.initial_snapshot = initial()
 
     async def read(self) -> Snapshot:
         document = await self.ref.get()
-        return Snapshot.model_validate(document.to_dict()) if document.exists else initial()
+        if not document.exists:
+            try:
+                await self.ref.create(self.initial_snapshot.model_dump())
+            except Exception:
+                document = await self.ref.get()
+                if not document.exists:
+                    raise
+                return Snapshot.model_validate(document.to_dict())
+            return self.initial_snapshot.model_copy(deep=True)
+        data = document.to_dict()
+        data["state"].setdefault("generation_id", "firestore-existing")
+        return Snapshot.model_validate(data)
 
     async def commit(self, expected: int, snapshot: Snapshot):
         from google.cloud.firestore_v1 import async_transactional

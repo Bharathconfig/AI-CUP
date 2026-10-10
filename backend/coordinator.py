@@ -139,5 +139,7 @@ def dispatch(previous: Snapshot, event: str, bids: dict[str, Bid],
     state.totals = total(houses)
     coordinator_log = log(None, "coordinator", "deterministic",
                           "Completed one 15-minute physics-constrained dispatch; ideal lossless batteries.",
-                          {"revision": state.revision, "event": event, "totals": state.totals.model_dump()})
+                          {"revision": state.revision, "event": event,
+                           "trades": [trade.model_dump() for trade in state.trades],
+                           "totals": state.totals.model_dump()})
     return Snapshot(state=state, logs=(previous.logs + bid_logs + [coordinator_log])[-200:])

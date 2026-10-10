@@ -19,10 +19,10 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from .agents import Agents
+from .agent import Agents
 from .config import Settings
 from .models import Disruption, State
-from .simulation import dispatch, initial, log
+from .coordinator import dispatch, initial, log
 from .store import Conflict, FirestoreStore, MemoryStore
 
 logger = logging.getLogger(__name__)
@@ -65,6 +65,7 @@ def create_app(settings: Settings | None = None, store=None, agents=None) -> Fas
             previous = await read()
             if event is None:
                 updated = initial(previous.state.revision + 1)
+                updated.state.generation_id = previous.state.generation_id
                 updated.logs = [log(None, "coordinator", "deterministic",
                                     "Simulation reset to initial conditions.", {"revision": updated.state.revision})]
             else:

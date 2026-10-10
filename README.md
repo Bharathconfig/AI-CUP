@@ -94,7 +94,7 @@ timeout is five seconds per household; `BACKEND_AI_TIMEOUT_SECONDS` accepts
 
 Memory mode is explicitly selected by default and is lost when the process
 restarts; use one backend worker in this mode. Firestore mode uses
-`google.cloud.firestore.AsyncClient`, persists its document on the first mutation,
+`google.cloud.firestore.AsyncClient`, persists its document on the first read,
 and atomically compares revisions before writing the state and ledger together.
 Conflicting rounds return HTTP 409; retry manually. Firestore errors return 503,
 not a silent switch to memory. Logs are bounded to the newest 200 entries.
