@@ -37,8 +37,8 @@ gcloud run deploy micro-grid-backend --project="$PROJECT" --region="$REGION" \
   --image="$REGION-docker.pkg.dev/$PROJECT/micro-grid/backend:$TAG" \
   --service-account="$ACCOUNT" --port=8000 --allow-unauthenticated \
   --cpu=1 --memory=512Mi --min-instances=0 --max-instances=3 --concurrency=8 --timeout=120 \
-  --set-env-vars="STATE_BACKEND=firestore,GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=$GEMINI_MODEL,REQUIRE_API_TOKEN=true" \
-  --set-secrets="API_TOKEN=$API_TOKEN_SECRET:latest"
+  --set-env-vars="BACKEND_STORE=firestore,GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=$GEMINI_MODEL,BACKEND_PRODUCTION=true" \
+  --set-secrets="BACKEND_API_TOKEN=$API_TOKEN_SECRET:latest"
 BACKEND_URL="$(gcloud run services describe micro-grid-backend --project="$PROJECT" --region="$REGION" --format='value(status.url)')"
 gcloud run deploy micro-grid-dashboard --project="$PROJECT" --region="$REGION" \
   --image="$REGION-docker.pkg.dev/$PROJECT/micro-grid/frontend:$TAG" \

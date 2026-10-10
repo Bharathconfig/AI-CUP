@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     environment:
-      STATE_BACKEND: memory
+      BACKEND_STORE: memory
     ports:
       - "127.0.0.1:8000:8000"
   frontend:

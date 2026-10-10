@@ -1,3 +1,16 @@
+"""Run from repository root: uvicorn backend.main:app --port 8000.
+
+GETs are read-only. Every disruption POST advances exactly 15 minutes and
+persists battery energy; reset restores the baseline and advances revision.
+Normal is the reset baseline, storm reduces solar to 25% with utility supply,
+and outage islands the community. No background clock or real device control.
+Initial/reset totals describe inventory, not a dispatched interval.
+Interval unserved_kwh counts unmet active demand; shed_kwh separately counts
+deliberately disabled flexible demand. Add both for unmet full demand.
+Memory is process-local and resets on restart; use one worker or Firestore
+for shared durable state. Cross-instance conflicts return 409; retry explicitly.
+"""
+
 import asyncio
 import logging
 import secrets

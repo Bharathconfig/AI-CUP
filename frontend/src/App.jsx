@@ -27,8 +27,13 @@ function App() {
   const [token, setToken] = useState('')
   const [online, setOnline] = useState(false)
   const latestRevision = useRef(-1)
+  const generation = useRef(null)
 
   function acceptState(next) {
+    if (next.generation_id !== generation.current) {
+      generation.current = next.generation_id
+      latestRevision.current = -1
+    }
     if (next.revision >= latestRevision.current) {
       latestRevision.current = next.revision
       setState(next)
@@ -176,7 +181,7 @@ function App() {
         <div className="log-console" aria-label="Agent negotiation logs">
           {logs.length === 0 && <p className="empty">No negotiations yet. Trigger a disruption to start a round.</p>}
           {[...logs].reverse().map(log => <details key={log.id}>
-            <summary><time>{new Date(log.timestamp).toLocaleTimeString()}</time><span className="log-agent">{log.agent || log.household_id || 'coordinator'}</span><span className={`source ${log.source}`}>{log.source}</span><span>{log.message}</span></summary>
+            <summary><time>{new Date(log.timestamp).toLocaleTimeString()}</time><span className="log-agent">{log.household_id || log.agent || 'coordinator'}</span><span className={`source ${log.source}`}>{log.source}</span><span>{log.message}</span></summary>
             <pre>{JSON.stringify(log.payload, null, 2)}</pre>
           </details>)}
         </div>

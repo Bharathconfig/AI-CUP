@@ -13,17 +13,23 @@ class Agents:
     def __init__(self, settings: Settings):
         self.settings = settings
         self.client = None
+        self.initialization_failed = False
         if settings.gemini_api_key or settings.vertex:
-            from google import genai
-            self.client = genai.Client(
-                **({"vertexai": True, "project": settings.project, "location": settings.location}
-                   if settings.vertex else {"api_key": settings.gemini_api_key})
-            )
+            try:
+                from google import genai
+                self.client = genai.Client(
+                    **({"vertexai": True, "project": settings.project, "location": settings.location}
+                       if settings.vertex else {"api_key": settings.gemini_api_key})
+                )
+            except Exception:
+                self.initialization_failed = True
+                logger.warning("AI client unavailable; using deterministic fallback")
 
     async def bids(self, snapshot: Snapshot, event: str):
         async def one(h):
             source = "deterministic"
-            bid = Bid()
+            bid = (Bid(message="Deterministic fallback: AI client configuration unavailable.")
+                   if self.initialization_failed else Bid())
             if self.client:
                 try:
                     response = await asyncio.wait_for(
