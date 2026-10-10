@@ -1,0 +1,13 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ['build', '-f', 'backend/Dockerfile', '-t', '${_REGION}-docker.pkg.dev/$PROJECT_ID/micro-grid/backend:${_TAG}', '.']
+  - name: gcr.io/cloud-builders/docker
+    args: ['build', '-f', 'frontend/Dockerfile', '-t', '${_REGION}-docker.pkg.dev/$PROJECT_ID/micro-grid/frontend:${_TAG}', '.']
+images:
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/micro-grid/backend:${_TAG}'
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/micro-grid/frontend:${_TAG}'
+substitutions:
+  _REGION: us-central1
+  _TAG: latest
+options:
+  logging: CLOUD_LOGGING_ONLY
