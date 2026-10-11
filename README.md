@@ -104,6 +104,10 @@ timeout is five seconds per household; `BACKEND_AI_TIMEOUT_SECONDS` accepts
 | `FIRESTORE_COLLECTION` | `microgrid` | Firestore collection |
 | `FIRESTORE_DOCUMENT` | `simulation` | Shared simulation document |
 | `FIRESTORE_EMULATOR_HOST` | unset | Emulator host:port, e.g. `127.0.0.1:8085` |
+| `BIGQUERY_TABLE` | empty | Optional fully qualified `project.dataset.table` for committed snapshot rows |
+| `GCS_BUCKET` | empty | Optional bucket for snapshot archives and Vision image inputs |
+| `PUBSUB_TOPIC` | empty | Optional Pub/Sub topic ID for committed dispatch events |
+| `EARTH_ENGINE_PROJECT` | empty | Optional registered Earth Engine project for solar context |
 | `BACKEND_API_TOKEN` | empty | Optional local mutation token |
 | `BACKEND_PRODUCTION` | `false` | Requires a mutation token at startup |
 | `BACKEND_CORS_ORIGINS` | `http://localhost:5173,http://localhost:3000` | Comma-separated allowed origins |
@@ -135,6 +139,8 @@ identity `roles/datastore.user`.
 | `GET /api/logs` | Structured decisions and coordinator ledger |
 | `POST /api/disruptions` | Body `{"event":"storm"}` or `{"event":"outage"}` |
 | `POST /api/reset` | Restore initial simulation |
+| `POST /api/images/analyze` | Body `{"gcs_uri":"gs://bucket/object"}`; Cloud Vision labels an image from the configured bucket |
+| `GET /api/geospatial/solar?latitude=37.4&longitude=-122.1` | Optional Earth Engine average hourly irradiance context for the previous seven days |
 
 When configured, mutations require `X-API-Key` matching `BACKEND_API_TOKEN`.
 Enter the token in the dashboard operator field; it stays in memory only.
@@ -178,6 +184,58 @@ identity; nginx currently does not mint Cloud Run identity tokens. For a public
 event, add per-user authentication, rate limiting, and budget/quota controls
 before sharing operator access. The token is shared operator authorization,
 not a complete multi-user security system.
+
+## Google Cloud services used
+
+The local application runs without a Google Cloud account. The Cloud Run deployment
+uses the core services below; the optional integrations are activated only when
+their environment variables are configured. Cloud services may incur charges;
+review current pricing and quotas before enabling them.
+
+| Service | Project use | Configuration |
+| --- | --- | --- |
+| **Vertex AI / Gemini** | Gemini produces structured household bids in the deployed backend. The Gemini Developer API can also be used locally with an API key. | `GOOGLE_GENAI_USE_VERTEXAI`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, `GEMINI_MODEL` |
+| **Cloud Firestore** | Shared durable simulation state and negotiation logs, with revision-checked transactional writes. | `BACKEND_STORE=firestore` |
+| **Cloud Run** | Runs the FastAPI backend and React dashboard as separate services. | `deploy/cloud-run.sh` |
+| **Cloud Build** | Builds the backend and frontend container images. | `deploy/cloudbuild.yaml` |
+| **Artifact Registry** | Stores the images deployed to Cloud Run. | Created by `deploy/cloud-run.sh` |
+| **Secret Manager** | Supplies the backend operator token to Cloud Run without embedding it in the image. | `API_TOKEN_SECRET` |
+| **Cloud Logging** | Receives Cloud Build logs (`CLOUD_LOGGING_ONLY`). | `deploy/cloudbuild.yaml` |
+| **BigQuery (optional)** | Receives one JSON snapshot row after each successfully committed simulation revision. Create the target table before enabling it. | `BIGQUERY_TABLE=project.dataset.table` |
+| **Cloud Storage (optional)** | Archives committed snapshots as JSON and provides the source bucket for image analysis. | `GCS_BUCKET` |
+| **Cloud Vision API (optional)** | Returns image labels for a `gs://` image in the configured bucket. | `GCS_BUCKET`; endpoint requires the API token when configured |
+| **Earth Engine (optional)** | Queries the `ECMWF/ERA5/HOURLY` collection for seven-day average solar irradiance context. This informational endpoint does not modify simulated dispatch. | `EARTH_ENGINE_PROJECT` |
+| **Pub/Sub (optional)** | Publishes an event for each successfully committed revision; this project does not include a subscriber. | `PUBSUB_TOPIC` |
+| **IAM / service accounts** | Gives the Cloud Run backend its runtime identity and access to enabled services and the operator secret. | Configured by the deployment script and service-specific IAM grants |
+
+The optional integrations are independent and best-effort: a failed analytics,
+archive, or Pub/Sub write does not roll back a committed simulation update. Image
+analysis and Earth Engine requests instead return HTTP 503 when their service is
+unavailable. `deploy/cloud-run.sh` enables the corresponding APIs when an optional
+setting is present, but does not create buckets, BigQuery datasets/tables, or
+Pub/Sub topics. Provision those resources and grant the runtime service account
+least-privilege access before setting the options:
+
+- BigQuery: grant `roles/bigquery.dataEditor` on the target dataset and create a
+  table with `revision INT64`, `event STRING`, `updated_at TIMESTAMP`,
+  `generation_id STRING`, and `snapshot_json STRING` columns.
+- Cloud Storage: grant `roles/storage.objectCreator` on the archive bucket; grant
+  `roles/storage.objectViewer` if images in that bucket will be analyzed.
+- Pub/Sub: grant `roles/pubsub.publisher` on the topic.
+- Earth Engine: register/enable the configured project with Earth Engine and grant
+  the Cloud Run runtime identity Earth Engine access. Access and dataset
+  availability are subject to Earth Engine eligibility and terms.
+
+Only configure a service after its API, resource, permissions, and (for Earth
+Engine) project access are ready. Example optional settings:
+
+```bash
+export BIGQUERY_TABLE="$GOOGLE_CLOUD_PROJECT.microgrid.dispatches"
+export GCS_BUCKET="your-existing-microgrid-bucket"
+export PUBSUB_TOPIC="micro-grid-dispatches"
+export EARTH_ENGINE_PROJECT="$GOOGLE_CLOUD_PROJECT"
+bash deploy/cloud-run.sh
+```
 
 ## Validation
 
