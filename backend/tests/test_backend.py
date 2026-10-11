@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from backend.agent import Agents
+from backend.cloud_services import CloudServices
 from backend.config import Settings
 from backend.main import create_app
 from backend.models import Bid
@@ -202,6 +203,106 @@ def test_deployment_configuration_and_canonical_precedence(monkeypatch):
     monkeypatch.setenv("API_TOKEN", "")
     with pytest.raises(ValueError, match="requires API_TOKEN"):
         Settings.from_env()
+
+
+def test_optional_cloud_integration_configuration(monkeypatch):
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+    monkeypatch.setenv("BIGQUERY_TABLE", "test-project.microgrid.dispatches")
+    monkeypatch.setenv("GCS_BUCKET", "microgrid-test")
+    monkeypatch.setenv("PUBSUB_TOPIC", "dispatches")
+    monkeypatch.setenv("EARTH_ENGINE_PROJECT", "test-earth-project")
+    settings = Settings.from_env()
+    assert settings.bigquery_table == "test-project.microgrid.dispatches"
+    assert settings.storage_bucket == "microgrid-test"
+    assert settings.pubsub_topic == "dispatches"
+    assert settings.earth_engine_project == "test-earth-project"
+    with pytest.raises(ValueError, match="require GOOGLE_CLOUD_PROJECT"):
+        Settings(bigquery_table="project.dataset.table")
+    with pytest.raises(ValueError, match="topic ID"):
+        Settings(project="test-project", pubsub_topic="projects/test/topics/name")
+
+
+def test_cloud_services_record_committed_snapshot_to_configured_sinks():
+    class BigQuery:
+        rows = None
+
+        def insert_rows_json(self, table, rows, row_ids):
+            self.rows = (table, rows, row_ids)
+            return []
+
+    class Blob:
+        def __init__(self):
+            self.upload = None
+
+        def upload_from_string(self, data, content_type):
+            self.upload = (data, content_type)
+
+    class Storage:
+        def __init__(self):
+            self.object = Blob()
+
+        def bucket(self, name):
+            assert name == "microgrid-test"
+            return self
+
+        def blob(self, name):
+            assert name.endswith("/1.json")
+            return self.object
+
+    class Publisher:
+        def __init__(self):
+            self.message = None
+
+        def topic_path(self, project, topic):
+            return f"projects/{project}/topics/{topic}"
+
+        def publish(self, topic, message):
+            self.message = (topic, message)
+            return SimpleNamespace(result=lambda timeout: None)
+
+    services = CloudServices.__new__(CloudServices)
+    services.settings = SimpleNamespace(
+        bigquery_table="project.dataset.table", storage_bucket="microgrid-test",
+        pubsub_topic="dispatches", project="test-project",
+    )
+    services.bigquery = BigQuery()
+    services.storage = Storage()
+    services.publisher = Publisher()
+    run(services.record(initial(1)))
+    assert services.bigquery.rows[0] == "project.dataset.table"
+    assert services.bigquery.rows[1][0]["revision"] == 1
+    assert services.storage.object.upload[1] == "application/json"
+    assert services.publisher.message[0] == "projects/test-project/topics/dispatches"
+
+
+def test_cloud_service_endpoints_are_validated_and_optional():
+    class Cloud:
+        async def record(self, snapshot):
+            pass
+
+        async def analyze_image(self, uri):
+            if not uri.startswith("gs://accepted/"):
+                raise ValueError("wrong bucket")
+            return [{"description": "solar panel", "score": 0.9}]
+
+        async def solar_context(self, latitude, longitude):
+            return {"latitude": latitude, "longitude": longitude}
+
+    with TestClient(create_app(Settings(api_token="test-token"), cloud_services=Cloud())) as client:
+        headers = {"X-API-Key": "test-token"}
+        assert client.post("/api/images/analyze", json={
+            "gcs_uri": "gs://accepted/panel.jpg",
+        }, headers=headers).json()["labels"][0]["description"] == "solar panel"
+        assert client.post("/api/images/analyze", json={
+            "gcs_uri": "gs://other/panel.jpg",
+        }, headers=headers).status_code == 422
+        assert client.get("/api/geospatial/solar?latitude=1&longitude=2").status_code == 401
+        assert client.get("/api/geospatial/solar?latitude=91&longitude=0",
+                          headers=headers).status_code == 422
+        assert client.get("/api/geospatial/solar?latitude=1&longitude=2",
+                          headers=headers).json() == {
+            "latitude": 1.0, "longitude": 2.0,
+        }
 
 
 def test_reset_revisions_are_strictly_monotonic():

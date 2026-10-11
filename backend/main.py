@@ -20,21 +20,23 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from .agent import Agents
+from .cloud_services import CloudServices
 from .config import Settings
-from .models import Disruption, State
+from .models import Disruption, ImageAnalysisRequest, State
 from .coordinator import dispatch, initial, log
 from .store import Conflict, FirestoreStore, MemoryStore
 
 logger = logging.getLogger(__name__)
 
 
-def create_app(settings: Settings | None = None, store=None, agents=None) -> FastAPI:
+def create_app(settings: Settings | None = None, store=None, agents=None, cloud_services=None) -> FastAPI:
     settings = settings or Settings.from_env()
 
     @asynccontextmanager
     async def lifespan(app):
         app.state.store = store or (FirestoreStore(settings) if settings.store == "firestore" else MemoryStore())
         app.state.agents = agents or Agents(settings)
+        app.state.cloud_services = cloud_services or CloudServices(settings)
         app.state.run_lock = asyncio.Lock()
         try:
             yield
@@ -78,6 +80,7 @@ def create_app(settings: Settings | None = None, store=None, agents=None) -> Fas
             except Exception:
                 logger.error("State store commit unavailable")
                 raise HTTPException(503, "State store unavailable") from None
+            await app.state.cloud_services.record(updated)
             return updated.state
 
     @app.get("/health")
@@ -92,6 +95,29 @@ def create_app(settings: Settings | None = None, store=None, agents=None) -> Fas
     @app.get("/api/logs")
     async def logs():
         return {"logs": (await read()).logs}
+
+    @app.post("/api/images/analyze", dependencies=[Depends(authorize)])
+    async def analyze_image(body: ImageAnalysisRequest):
+        try:
+            labels = await app.state.cloud_services.analyze_image(body.gcs_uri)
+            return {"labels": labels}
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from None
+        except RuntimeError:
+            raise HTTPException(503, "Image analysis unavailable") from None
+        except Exception:
+            logger.warning("Image analysis unavailable")
+            raise HTTPException(503, "Image analysis unavailable") from None
+
+    @app.get("/api/geospatial/solar", dependencies=[Depends(authorize)])
+    async def solar_context(latitude: float, longitude: float):
+        if not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
+            raise HTTPException(422, "Latitude or longitude is out of range")
+        try:
+            return await app.state.cloud_services.solar_context(latitude, longitude)
+        except Exception:
+            logger.warning("Earth Engine solar context unavailable")
+            raise HTTPException(503, "Earth Engine solar context unavailable") from None
 
     @app.post("/api/disruptions", response_model=State, dependencies=[Depends(authorize)])
     async def disruption(body: Disruption):

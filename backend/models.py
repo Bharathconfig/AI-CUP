@@ -20,6 +20,10 @@ class Disruption(StrictModel):
     event: Literal["storm", "outage"]
 
 
+class ImageAnalysisRequest(StrictModel):
+    gcs_uri: str = Field(pattern=r"^gs://[^/]+/.+", max_length=2048)
+
+
 class Bid(StrictModel):
     preferred_load_tier: Tier = "full"
     reserve_pct: float = 10

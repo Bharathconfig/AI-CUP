@@ -11,9 +11,13 @@ ACCOUNT="micro-grid-runtime@$PROJECT.iam.gserviceaccount.com"
 TAG="$(date -u +%Y%m%d%H%M%S)"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-gcloud services enable run.googleapis.com cloudbuild.googleapis.com \
-  artifactregistry.googleapis.com firestore.googleapis.com \
-  aiplatform.googleapis.com secretmanager.googleapis.com --project="$PROJECT"
+SERVICES=(run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
+  firestore.googleapis.com aiplatform.googleapis.com secretmanager.googleapis.com)
+[[ -z "${BIGQUERY_TABLE:-}" ]] || SERVICES+=(bigquery.googleapis.com)
+[[ -z "${GCS_BUCKET:-}" ]] || SERVICES+=(storage.googleapis.com vision.googleapis.com)
+[[ -z "${PUBSUB_TOPIC:-}" ]] || SERVICES+=(pubsub.googleapis.com)
+[[ -z "${EARTH_ENGINE_PROJECT:-}" ]] || SERVICES+=(earthengine.googleapis.com)
+gcloud services enable "${SERVICES[@]}" --project="$PROJECT"
 gcloud secrets describe "$API_TOKEN_SECRET" --project="$PROJECT" >/dev/null
 
 if ! gcloud artifacts repositories describe micro-grid --location="$REGION" --project="$PROJECT" >/dev/null 2>&1; then
@@ -37,7 +41,7 @@ gcloud run deploy micro-grid-backend --project="$PROJECT" --region="$REGION" \
   --image="$REGION-docker.pkg.dev/$PROJECT/micro-grid/backend:$TAG" \
   --service-account="$ACCOUNT" --port=8000 --allow-unauthenticated \
   --cpu=1 --memory=512Mi --min-instances=0 --max-instances=3 --concurrency=8 --timeout=120 \
-  --set-env-vars="BACKEND_STORE=firestore,GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=$GEMINI_MODEL,BACKEND_PRODUCTION=true" \
+  --set-env-vars="BACKEND_STORE=firestore,GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=$GEMINI_MODEL,BACKEND_PRODUCTION=true,BIGQUERY_TABLE=${BIGQUERY_TABLE:-},GCS_BUCKET=${GCS_BUCKET:-},PUBSUB_TOPIC=${PUBSUB_TOPIC:-},EARTH_ENGINE_PROJECT=${EARTH_ENGINE_PROJECT:-}" \
   --set-secrets="BACKEND_API_TOKEN=$API_TOKEN_SECRET:latest"
 BACKEND_URL="$(gcloud run services describe micro-grid-backend --project="$PROJECT" --region="$REGION" --format='value(status.url)')"
 gcloud run deploy micro-grid-dashboard --project="$PROJECT" --region="$REGION" \

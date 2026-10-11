@@ -2,4 +2,9 @@ fastapi==0.143.0
 uvicorn==0.54.0
 google-genai==2.29.0
 google-cloud-firestore==2.34.1
+google-cloud-bigquery==3.46.1
+google-cloud-storage==3.17.0
+google-cloud-pubsub==2.42.0
+google-cloud-vision==3.16.0
+earthengine-api==1.7.47
 pydantic==2.14.0
