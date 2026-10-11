@@ -142,8 +142,9 @@ identity `roles/datastore.user`.
 | `POST /api/images/analyze` | Body `{"gcs_uri":"gs://bucket/object"}`; Cloud Vision labels an image from the configured bucket |
 | `GET /api/geospatial/solar?latitude=37.4&longitude=-122.1` | Optional Earth Engine average hourly irradiance context for the previous seven days |
 
-When configured, mutations require `X-API-Key` matching `BACKEND_API_TOKEN`.
-Enter the token in the dashboard operator field; it stays in memory only.
+When configured, protected API operations require `X-API-Key` matching
+`BACKEND_API_TOKEN`. This includes image analysis and Earth Engine requests. Enter
+the token in the dashboard operator field; it stays in memory only.
 Read endpoints remain public. Never put secrets in `VITE_*` variables.
 
 ## Deploy to Google Cloud Run

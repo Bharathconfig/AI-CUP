@@ -12,7 +12,7 @@ TAG="$(date -u +%Y%m%d%H%M%S)"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 SERVICES=(run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
- firestore.googleapis.com aiplatform.googleapis.com secretmanager.googleapis.com)
+  firestore.googleapis.com aiplatform.googleapis.com secretmanager.googleapis.com)
 [[ -z "${BIGQUERY_TABLE:-}" ]] || SERVICES+=(bigquery.googleapis.com)
 [[ -z "${GCS_BUCKET:-}" ]] || SERVICES+=(storage.googleapis.com vision.googleapis.com)
 [[ -z "${PUBSUB_TOPIC:-}" ]] || SERVICES+=(pubsub.googleapis.com)

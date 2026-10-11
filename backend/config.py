@@ -1,5 +1,6 @@
 import math
 import os
+import re
 from dataclasses import dataclass
 
 
@@ -45,7 +46,7 @@ class Settings:
         if any((self.bigquery_table, self.storage_bucket, self.pubsub_topic,
                 self.earth_engine_project)) and not self.project:
             raise ValueError("Google Cloud integrations require GOOGLE_CLOUD_PROJECT")
-        if self.pubsub_topic and ("/" in self.pubsub_topic or not self.pubsub_topic):
+        if self.pubsub_topic and not re.fullmatch(r"[A-Za-z][A-Za-z0-9._~+%-]{2,254}", self.pubsub_topic):
             raise ValueError("PUBSUB_TOPIC must be a topic ID")
         if any("/" in value or not value for value in (self.collection, self.document)):
             raise ValueError("Firestore collection/document must be single path segments")

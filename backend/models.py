@@ -21,7 +21,7 @@ class Disruption(StrictModel):
 
 
 class ImageAnalysisRequest(StrictModel):
-    gcs_uri: str = Field(pattern=r"^gs://[^/]+/.+")
+    gcs_uri: str = Field(pattern=r"^gs://[^/]+/.+", max_length=2048)
 
 
 class Bid(StrictModel):

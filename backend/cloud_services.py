@@ -16,26 +16,18 @@ class CloudServices:
         self.storage = None
         self.publisher = None
         self.vision = None
-        if settings.bigquery_table:
-            from google.cloud import bigquery
-            self.bigquery = bigquery.Client(project=settings.project)
-        if settings.storage_bucket:
-            from google.cloud import storage
-            self.storage = storage.Client(project=settings.project)
-        if settings.pubsub_topic:
-            from google.cloud import pubsub_v1
-            self.publisher = pubsub_v1.PublisherClient()
 
     async def record(self, snapshot: Snapshot):
-        if not any((self.bigquery, self.storage, self.publisher)):
+        if not any((self.settings.bigquery_table, self.settings.storage_bucket,
+                    self.settings.pubsub_topic)):
             return
         payload = snapshot.model_dump(mode="json")
         tasks = []
-        if self.bigquery:
+        if self.settings.bigquery_table:
             tasks.append(self._best_effort(self._write_bigquery, payload))
-        if self.storage:
+        if self.settings.storage_bucket:
             tasks.append(self._best_effort(self._archive_snapshot, payload))
-        if self.publisher:
+        if self.settings.pubsub_topic:
             tasks.append(self._best_effort(self._publish_event, payload))
         await asyncio.gather(*tasks)
 
@@ -46,6 +38,9 @@ class CloudServices:
             logger.warning("Optional Google Cloud integration unavailable")
 
     def _write_bigquery(self, payload):
+        if self.bigquery is None:
+            from google.cloud import bigquery
+            self.bigquery = bigquery.Client(project=self.settings.project)
         revision = payload["state"]["revision"]
         errors = self.bigquery.insert_rows_json(
             self.settings.bigquery_table,
@@ -59,6 +54,9 @@ class CloudServices:
             raise RuntimeError("BigQuery insert failed")
 
     def _archive_snapshot(self, payload):
+        if self.storage is None:
+            from google.cloud import storage
+            self.storage = storage.Client(project=self.settings.project)
         state = payload["state"]
         blob = self.storage.bucket(self.settings.storage_bucket).blob(
             f"snapshots/{state['generation_id']}/{state['revision']}.json"
@@ -66,6 +64,9 @@ class CloudServices:
         blob.upload_from_string(json.dumps(payload), content_type="application/json")
 
     def _publish_event(self, payload):
+        if self.publisher is None:
+            from google.cloud import pubsub_v1
+            self.publisher = pubsub_v1.PublisherClient()
         topic = self.publisher.topic_path(self.settings.project, self.settings.pubsub_topic)
         state = payload["state"]
         self.publisher.publish(topic, json.dumps({

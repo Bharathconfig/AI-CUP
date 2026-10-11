@@ -109,7 +109,7 @@ def create_app(settings: Settings | None = None, store=None, agents=None, cloud_
             logger.warning("Image analysis unavailable")
             raise HTTPException(503, "Image analysis unavailable") from None
 
-    @app.get("/api/geospatial/solar")
+    @app.get("/api/geospatial/solar", dependencies=[Depends(authorize)])
     async def solar_context(latitude: float, longitude: float):
         if not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
             raise HTTPException(422, "Latitude or longitude is out of range")

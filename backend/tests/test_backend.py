@@ -296,8 +296,11 @@ def test_cloud_service_endpoints_are_validated_and_optional():
         assert client.post("/api/images/analyze", json={
             "gcs_uri": "gs://other/panel.jpg",
         }, headers=headers).status_code == 422
-        assert client.get("/api/geospatial/solar?latitude=91&longitude=0").status_code == 422
-        assert client.get("/api/geospatial/solar?latitude=1&longitude=2").json() == {
+        assert client.get("/api/geospatial/solar?latitude=1&longitude=2").status_code == 401
+        assert client.get("/api/geospatial/solar?latitude=91&longitude=0",
+                          headers=headers).status_code == 422
+        assert client.get("/api/geospatial/solar?latitude=1&longitude=2",
+                          headers=headers).json() == {
             "latitude": 1.0, "longitude": 2.0,
         }
 
