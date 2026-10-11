@@ -6,6 +6,22 @@ and sheds flexible loads during disruptions. A React dashboard displays the
 neighborhood network, battery/solar metrics, and inspectable JSON negotiation logs.
 FastAPI serves the simulation; Google Gemini supplies optional agent decisions.
 
+### Why this matters in storms and outages
+
+This project is designed to keep working when the grid is under stress.
+During a storm, solar generation drops, demand becomes harder to balance, and some
+homes may lose reliable supply. The community coordinator still reallocates energy
+across households, prioritizes critical loads, and uses battery reserves to keep the
+micro-grid functional. In an outage, the system islands the neighborhood and continues
+coordinating energy locally instead of depending on the utility grid.
+
+**How to explain this to the jury:**
+- Even when solar production falls, the coordinator adapts.
+- Critical loads are protected first.
+- Battery energy is shared where it helps most.
+- The system continues making decisions locally during grid disruptions.
+- The dashboard shows that resilience is not theoretical — it is simulated live.
+
 ## Run locally (no cloud account or AI key required)
 
 Requirements: Python 3.12+, Node.js 22.12+ (or 24+), npm. Run these commands from
