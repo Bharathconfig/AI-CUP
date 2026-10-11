@@ -28,6 +28,10 @@ class Settings:
     location: str = "us-central1"
     collection: str = "microgrid"
     document: str = "simulation"
+    bigquery_table: str = ""
+    storage_bucket: str = ""
+    pubsub_topic: str = ""
+    earth_engine_project: str = ""
 
     def __post_init__(self):
         if self.store not in {"memory", "firestore"}:
@@ -38,6 +42,11 @@ class Settings:
             raise ValueError("BACKEND_AI_TIMEOUT_SECONDS must be between 0.1 and 30")
         if (self.vertex or self.store == "firestore") and not self.project:
             raise ValueError("Google Cloud configuration requires GOOGLE_CLOUD_PROJECT")
+        if any((self.bigquery_table, self.storage_bucket, self.pubsub_topic,
+                self.earth_engine_project)) and not self.project:
+            raise ValueError("Google Cloud integrations require GOOGLE_CLOUD_PROJECT")
+        if self.pubsub_topic and ("/" in self.pubsub_topic or not self.pubsub_topic):
+            raise ValueError("PUBSUB_TOPIC must be a topic ID")
         if any("/" in value or not value for value in (self.collection, self.document)):
             raise ValueError("Firestore collection/document must be single path segments")
         if self.production and "*" in self.cors_origins:
@@ -60,4 +69,8 @@ class Settings:
             location=os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1"),
             collection=os.getenv("FIRESTORE_COLLECTION", "microgrid"),
             document=os.getenv("FIRESTORE_DOCUMENT", "simulation"),
+            bigquery_table=os.getenv("BIGQUERY_TABLE", ""),
+            storage_bucket=os.getenv("GCS_BUCKET", ""),
+            pubsub_topic=os.getenv("PUBSUB_TOPIC", ""),
+            earth_engine_project=os.getenv("EARTH_ENGINE_PROJECT", ""),
         )
